@@ -10,9 +10,7 @@ internal val dslJson = Json {
     coerceInputValues = true
 }
 
-// ============================================================
 // 页面根模型
-// ============================================================
 
 @Serializable
 data class DslPage(
@@ -21,9 +19,7 @@ data class DslPage(
     val content: DslNode = DialogNode(),
 )
 
-// ============================================================
 // Dialog
-// ============================================================
 
 @Serializable
 data class OverlayProps(
@@ -48,14 +44,10 @@ data class DialogProps(
 data class DialogNode(
     override val id: String? = null,
     val props: DialogProps = DialogProps(),
-    override val children: List<DslNode> = emptyList(),
-) : DslContainerNode {
-    override val containerProps = ContainerProps()
-}
+    val children: List<DslNode> = emptyList(),
+) : DslNode
 
-// ============================================================
 // 间距模型
-// ============================================================
 
 @Serializable
 data class SpacingProps(
@@ -65,9 +57,7 @@ data class SpacingProps(
     val right: String? = null,
 )
 
-// ============================================================
 // 组件属性
-// ============================================================
 
 @Serializable
 data class TextProps(
@@ -88,9 +78,9 @@ data class ImageProps(
     val src: String = "",
     val width: String? = null,
     val height: String? = null,
-    val paddingHorizontal: String? = null,
-    val paddingVertical: String? = null,
     val cornerRadius: String? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
 )
 
 @Serializable
@@ -102,8 +92,6 @@ data class ButtonProps(
     val cornerRadius: String? = null,
     val width: String? = null,
     val height: String? = null,
-    val paddingHorizontal: String? = null,
-    val paddingVertical: String? = null,
     val padding: SpacingProps? = null,
     val margin: SpacingProps? = null,
 )
@@ -119,18 +107,14 @@ data class ContainerProps(
     val gap: String? = null,
 )
 
-// ============================================================
 // 事件
-// ============================================================
 
 @Serializable
 data class EventConfig(
     val onClick: String? = null,
 )
 
-// ============================================================
 // DSL 节点树
-// ============================================================
 
 @Serializable
 sealed interface DslNode {
@@ -189,26 +173,24 @@ data class BoxNode(
     override val children: List<DslNode> = emptyList(),
 ) : DslContainerNode
 
-// ============================================================
 // 数据绑定
-// ============================================================
 
 data class DataContext(
     val fields: Map<String, String> = emptyMap()
 ) {
-    fun resolve(template: String): String {
-        val regex = Regex("\\{(\\w+)\\}")
-        return regex.replace(template) { match ->
-            fields[match.groupValues[1]] ?: match.value
-        }
+    fun resolve(template: String): String = PLACEHOLDER_REGEX.replace(template) { match ->
+        fields[match.groupValues[1]] ?: match.value
+    }
+
+    companion object {
+        private val PLACEHOLDER_REGEX = Regex("\\{(\\w+)\\}")
     }
 }
 
-// ============================================================
 // 工具函数
-// ============================================================
 
 internal fun parseHexColor(hex: String): Int? {
+    if (hex.equals("transparent", ignoreCase = true)) return 0x00000000
     val sanitized = hex.removePrefix("#")
     if (sanitized.length !in listOf(6, 8)) return null
     return try {

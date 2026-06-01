@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -26,7 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,7 +42,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -64,7 +69,18 @@ fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
     Box {
         when (val s = state) {
             is RetentionUiState.Loading -> LoadingContent()
-            is RetentionUiState.Error -> ErrorContent(s.errors)
+            is RetentionUiState.Error -> {
+                var dismissed by remember { mutableStateOf(false) }
+                if (!dismissed) {
+                    Box(Modifier.fillMaxSize()) {
+                        ErrorContent(
+                            errors = s.errors,
+                            onDismiss = { dismissed = true },
+                            modifier = Modifier.align(Alignment.TopEnd),
+                        )
+                    }
+                }
+            }
             is RetentionUiState.Success -> DslRenderer(
                 node = s.rootNode,
                 dataContext = viewModel.dataContext,
@@ -103,10 +119,62 @@ private fun LoadingContent() {
 }
 
 @Composable
-private fun ErrorContent(errors: List<String>) {
-    Column(Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("DSL 配置异常：", fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F.toInt()))
-        errors.forEach { err -> Text("- $err", color = Color(0xFFD32F2F.toInt())) }
+private fun ErrorContent(errors: List<String>, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .padding(16.dp)
+            .widthIn(max = 340.dp)
+            .heightIn(max = 400.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "DSL 配置异常（${errors.size} 条）",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFD32F2F.toInt()),
+            )
+            Text(
+                "✕",
+                fontSize = 18.sp,
+                color = Color(0xFF999999.toInt()),
+                modifier = Modifier.clickable { onDismiss() },
+            )
+        }
+        Spacer(Modifier.size(8.dp))
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            errors.forEach { err ->
+                val bracketEnd = err.indexOf("] ")
+                val (path, message) = if (bracketEnd > 0) {
+                    err.substring(1, bracketEnd) to err.substring(bracketEnd + 2)
+                } else {
+                    "?" to err
+                }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3F0.toInt())),
+                    shape = RoundedCornerShape(6.dp),
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            path,
+                            fontSize = 11.sp,
+                            color = Color(0xFF999999.toInt()),
+                        )
+                        Text(
+                            message,
+                            fontSize = 13.sp,
+                            color = Color(0xFFD32F2F.toInt()),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -148,9 +216,7 @@ private fun RenderDialog(
     }
 
     val cardRadius = node.props.cornerRadius?.parseDp()?.dp
-    val cardBg = node.props.backgroundColor?.let {
-        if (it == "transparent") Color.Transparent else parseHexColor(it)?.let { c -> Color(c) }
-    }
+    val cardBg = node.props.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val bgImage = node.props.backgroundImage?.let { imageResourceFor(it) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -232,7 +298,6 @@ private fun RenderText(node: TextNode, dataContext: DataContext) {
         maxLines = node.props.maxLines ?: Int.MAX_VALUE,
         overflow = TextOverflow.Ellipsis,
         style = TextStyle(
-            platformStyle = if (noFontPadding) PlatformTextStyle(includeFontPadding = false) else null,
             lineHeight = node.props.lineHeight?.parseSp()?.sp ?: TextUnit.Unspecified,
             lineHeightStyle = if (noFontPadding) LineHeightStyle(
                 alignment = LineHeightStyle.Alignment.Proportional,
@@ -258,7 +323,9 @@ private fun RenderImage(node: ImageNode) {
             contentDescription = null,
             modifier = Modifier
                 .size(width, height)
-                .clip(RoundedCornerShape(radius)),
+                .clip(RoundedCornerShape(radius))
+                .then(node.props.padding.toSpacingModifier())
+                .then(node.props.margin.toSpacingModifier()),
             contentScale = ContentScale.Crop,
         )
     } else {
@@ -266,7 +333,9 @@ private fun RenderImage(node: ImageNode) {
             modifier = Modifier
                 .size(width, height)
                 .clip(RoundedCornerShape(radius))
-                .background(Color(0xFFE0E0E0.toInt())),
+                .background(Color(0xFFE0E0E0.toInt()))
+                .then(node.props.padding.toSpacingModifier())
+                .then(node.props.margin.toSpacingModifier()),
             contentAlignment = Alignment.Center,
         ) {
             Text("🖼", fontSize = 20.sp)
@@ -290,16 +359,11 @@ private fun RenderButton(
     dataContext: DataContext,
     onEvent: (String) -> Unit,
 ) {
-    val bgColor = node.props.backgroundColor?.let {
-        if (it == "transparent") Color.Transparent else parseHexColor(it)?.let { c -> Color(c) }
-    } ?: Color.Unspecified
+    val bgColor = node.props.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } } ?: Color.Unspecified
 
     val contentColor = node.props.textColor?.let { parseHexColor(it)?.let { c -> Color(c) } } ?: Color.Unspecified
 
     val radius = node.props.cornerRadius?.parseDp()?.dp?.let { RoundedCornerShape(it) } ?: ButtonDefaults.shape
-
-    val hPadding = node.props.paddingHorizontal?.parseDp()?.dp ?: 0.dp
-    val vPadding = node.props.paddingVertical?.parseDp()?.dp ?: 0.dp
 
     val widthModifier = when {
         node.props.width == "fillMaxWidth" -> Modifier.fillMaxWidth()
@@ -315,7 +379,9 @@ private fun RenderButton(
 
     Button(
         onClick = { node.events?.onClick?.let { onEvent(it) } },
-        modifier = widthModifier.padding(horizontal = hPadding, vertical = vPadding),
+        modifier = widthModifier
+            .then(node.props.padding.toSpacingModifier())
+            .then(node.props.margin.toSpacingModifier()),
         shape = radius,
         colors = ButtonDefaults.buttonColors(
             containerColor = bgColor,

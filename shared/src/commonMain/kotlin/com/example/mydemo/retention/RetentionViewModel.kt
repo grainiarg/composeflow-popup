@@ -172,10 +172,9 @@ private object MockDsl {
               "textColor": "#666666",
               "backgroundColor": "transparent",
               "width": "fillMaxWidth",
-              "height": "44dp",
+              "height": "48dp",
               "cornerRadius": "8dp",
-              "fontSize": "14sp",
-              "margin": { "top": "8dp" }
+              "fontSize": "16sp"
             },
             "events": {
               "onClick": "leave"
