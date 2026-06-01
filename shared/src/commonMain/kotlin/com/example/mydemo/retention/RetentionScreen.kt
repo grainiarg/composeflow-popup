@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
@@ -28,7 +31,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,11 +56,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mydemo.shared.generated.resources.Res
 import mydemo.shared.generated.resources.bg_dialog
 import mydemo.shared.generated.resources.vip
 import mydemo.shared.generated.resources.image4
+import mydemo.shared.generated.resources.image5
+import mydemo.shared.generated.resources.image6
+import mydemo.shared.generated.resources.image7
+import mydemo.shared.generated.resources.image8
 import mydemo.shared.generated.resources.image3
 import mydemo.shared.generated.resources.image2
 import mydemo.shared.generated.resources.image1
@@ -248,11 +259,13 @@ fun DslRenderer(
     when (node) {
         is DialogNode -> RenderDialog(node, dataContext, onEvent)
         is TextNode -> RenderText(node, dataContext)
+        is AnimatedTextNode -> RenderAnimatedText(node, dataContext)
         is ImageNode -> RenderImage(node, dataContext)
         is ButtonNode -> RenderButton(node, dataContext, onEvent)
         is ColumnNode -> RenderColumn(node, dataContext, onEvent)
         is RowNode -> RenderRow(node, dataContext, onEvent)
         is BoxNode -> RenderBox(node, dataContext, onEvent)
+        is CarouselNode -> RenderCarousel(node, dataContext, onEvent)
     }
 }
 
@@ -368,6 +381,40 @@ private fun RenderText(node: TextNode, dataContext: DataContext) {
 }
 
 @Composable
+private fun RenderAnimatedText(node: AnimatedTextNode, dataContext: DataContext) {
+    val resolved = dataContext.resolve(node.props.text)
+    val targetNumber = resolved.toFloatOrNull() ?: 0f
+    val animatedValue = remember { Animatable(0f) }
+
+    LaunchedEffect(targetNumber) {
+        animatedValue.animateTo(
+            targetValue = targetNumber,
+            animationSpec = tween(durationMillis = 1000),
+        )
+    }
+
+    val display = animatedValue.value
+    val textToShow = if (display % 1.0f == 0.0f) {
+        display.toInt().toString()
+    } else {
+        val rounded = kotlin.math.round(display * 10) / 10
+        val intPart = rounded.toInt()
+        val decPart = ((rounded - intPart) * 10).toInt().let { if (it < 0) -it else it }
+        "$intPart.$decPart"
+    }
+
+    Text(
+        text = textToShow,
+        fontSize = node.props.fontSize?.parseSp()?.sp ?: 14.sp,
+        color = node.props.color?.let { parseHexColor(it)?.let { c -> Color(c) } } ?: Color.Unspecified,
+        fontWeight = parseFontWeight(node.props.fontWeight),
+        modifier = Modifier
+            .then(node.props.padding.toSpacingModifier())
+            .then(node.props.margin.toSpacingModifier()),
+    )
+}
+
+@Composable
 private fun RenderImage(node: ImageNode, dataContext: DataContext) {
     val radius = node.props.cornerRadius?.parseDp()?.dp ?: 0.dp
     val width = node.props.width?.parseDp()?.dp ?: 48.dp
@@ -408,6 +455,10 @@ private fun imageResourceFor(src: String): DrawableResource? = when (src) {
     "image2" -> Res.drawable.image2
     "image3" -> Res.drawable.image3
     "image4" -> Res.drawable.image4
+    "image5" -> Res.drawable.image5
+    "image6" -> Res.drawable.image6
+    "image7" -> Res.drawable.image7
+    "image8" -> Res.drawable.image8
     else -> null
 }
 
@@ -532,6 +583,69 @@ private fun RenderBox(
         contentAlignment = parseBoxAlign(node.containerProps.alignItems),
     ) {
         node.children.forEach { child -> DslRenderer(child, dataContext, onEvent) }
+    }
+}
+
+// ============================================================
+// 轮播组件
+// ============================================================
+
+@Composable
+private fun RenderCarousel(
+    node: CarouselNode,
+    dataContext: DataContext,
+    onEvent: (UiEvent) -> Unit,
+) {
+    val items = dataContext.resolveList(node.dataKey ?: return)
+    val template = node.itemTemplate ?: return
+    if (items.isEmpty()) return
+
+    val itemPerPage = node.props.itemPerPage
+    val actualPages = (items.size + itemPerPage - 1) / itemPerPage
+    val autoPlay = node.props.autoPlay
+    val loop = node.props.loop
+    val interval = node.props.interval
+
+    val pagerPageCount = if (loop) Int.MAX_VALUE else actualPages
+    val initialPage = if (loop) pagerPageCount / 2 else 0
+    // 对齐到实际页的起始位置，保证初始页为第0组数据
+    val alignedStart = if (loop) initialPage - (initialPage % actualPages) else initialPage
+    val pagerState = rememberPagerState(initialPage = alignedStart, pageCount = { pagerPageCount })
+
+    if (autoPlay && actualPages > 1) {
+        LaunchedEffect(pagerState) {
+            while (true) {
+                delay(interval)
+                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+            }
+        }
+    }
+
+    val heightModifier = node.props.height?.parseDp()?.dp?.let { Modifier.height(it) } ?: Modifier
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(heightModifier)
+            .then(node.props.padding.toSpacingModifier())
+            .then(node.props.margin.toSpacingModifier()),
+    ) { page ->
+        val actualPage = if (loop) page % actualPages else page
+        val start = actualPage * itemPerPage
+        val end = minOf(start + itemPerPage, items.size)
+        val pageItems = items.subList(start, end)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            pageItems.forEach { item ->
+                val itemContext = dataContext.withItem(item)
+                DslRenderer(template, itemContext, onEvent)
+            }
+        }
     }
 }
 

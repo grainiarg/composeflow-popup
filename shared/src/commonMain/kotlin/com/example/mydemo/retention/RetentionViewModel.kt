@@ -19,7 +19,10 @@ class RetentionViewModel : ViewModel() {
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
-    val dataContext = DataContext(retentionData)
+    val dataContext = DataContext(
+        fields = retentionData,
+        lists = mapOf("benefits" to listOf("image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8")),
+    )
 
     val samples: List<DslSample> = RetentionViewModel.samples
 
@@ -130,14 +133,14 @@ private object MockSamples {
             },
             "children": [
               {
-                "type": "text",
+                "type": "animatedText",
                 "id": "discount_num",
                 "props": {
                   "text": "{discount}",
                   "fontSize": "80sp",
                   "color": "#1A1A1A",
                   "fontWeight": "bold",
-                  "includeFontPadding": false
+                  "animate": "numberScroll"
                 }
               },
               {
@@ -165,19 +168,27 @@ private object MockSamples {
             }
           },
           {
-            "type": "row",
-            "id": "benefits_list",
+            "type": "carousel",
+            "id": "benefits_carousel",
             "props": {
-              "justifyContent": "center",
-              "gap": "8dp",
+              "width": "100%",
+              "height": "72dp",
+              "itemPerPage": 4,
+              "autoPlay": true,
+              "loop": true,
+              "interval": 2000,
               "margin": { "bottom": "12dp" }
             },
-            "children": [
-              { "type": "image", "props": { "src": "image1", "width": "56dp", "height": "56dp", "cornerRadius": "8dp" } },
-              { "type": "image", "props": { "src": "image2", "width": "56dp", "height": "56dp", "cornerRadius": "8dp" } },
-              { "type": "image", "props": { "src": "image3", "width": "56dp", "height": "56dp", "cornerRadius": "8dp" } },
-              { "type": "image", "props": { "src": "image4", "width": "56dp", "height": "56dp", "cornerRadius": "8dp" } }
-            ]
+            "dataKey": "benefits",
+            "itemTemplate": {
+              "type": "image",
+              "props": {
+                "src": "{item}",
+                "width": "56dp",
+                "height": "56dp",
+                "cornerRadius": "8dp"
+              }
+            }
           },
           {
             "type": "button",
@@ -191,7 +202,7 @@ private object MockSamples {
               "cornerRadius": "8dp",
               "fontSize": "16sp"
             },
-            "events": { "click": { "type": "track", "eventId": "click_btn_stay", "extra": "vip_retention" } }
+            "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
           },
           {
             "type": "button",

@@ -76,6 +76,22 @@ object DslParser {
                 validateSpacing(node.props.margin, "$path.props.margin", errors)
             }
 
+            is AnimatedTextNode -> {
+                if (node.props.text.isBlank()) {
+                    errors.add(ParseError(path, "AnimatedText 组件缺少 text 属性"))
+                }
+                node.props.fontSize?.let { fsStr ->
+                    val fs = fsStr.parseSp()
+                    if (fs == null) errors.add(ParseError("$path.props.fontSize", "无法解析的字号: $fsStr"))
+                    else if (fs <= 0) errors.add(ParseError("$path.props.fontSize", "fontSize 必须 > 0"))
+                }
+                node.props.color?.let { c ->
+                    if (parseHexColor(c) == null) errors.add(ParseError("$path.props.color", "非法颜色值: $c"))
+                }
+                validateSpacing(node.props.padding, "$path.props.padding", errors)
+                validateSpacing(node.props.margin, "$path.props.margin", errors)
+            }
+
             is ImageNode -> {
                 if (node.props.src.isBlank()) {
                     errors.add(ParseError(path, "Image 组件缺少 src 属性"))
@@ -117,6 +133,29 @@ object DslParser {
                 node.children.forEachIndexed { i, child ->
                     errors.addAll(validate(child, "$path.children[$i]"))
                 }
+            }
+
+            is CarouselNode -> {
+                if (node.dataKey.isNullOrBlank()) {
+                    errors.add(ParseError(path, "Carousel 组件缺少 dataKey"))
+                }
+                if (node.itemTemplate == null) {
+                    errors.add(ParseError(path, "Carousel 组件缺少 itemTemplate"))
+                } else {
+                    errors.addAll(validate(node.itemTemplate, "$path.itemTemplate"))
+                }
+                node.props.width?.let { wStr ->
+                    val w = wStr.parseDp(REFERENCE_WIDTH)
+                    if (w == null) errors.add(ParseError("$path.props.width", "无法解析的尺寸: $wStr"))
+                    else if (w <= 0) errors.add(ParseError("$path.props.width", "width 必须 > 0"))
+                }
+                node.props.height?.let { hStr ->
+                    val h = hStr.parseDp()
+                    if (h == null) errors.add(ParseError("$path.props.height", "无法解析的尺寸: $hStr"))
+                    else if (h <= 0) errors.add(ParseError("$path.props.height", "height 必须 > 0"))
+                }
+                validateSpacing(node.props.padding, "$path.props.padding", errors)
+                validateSpacing(node.props.margin, "$path.props.margin", errors)
             }
         }
 

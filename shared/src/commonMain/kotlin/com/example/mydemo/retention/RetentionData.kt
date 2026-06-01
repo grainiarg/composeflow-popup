@@ -74,6 +74,17 @@ data class TextProps(
 )
 
 @Serializable
+data class AnimatedTextProps(
+    val text: String = "",
+    val fontSize: String? = null,
+    val color: String? = null,
+    val fontWeight: String? = null,
+    val animate: String? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
+)
+
+@Serializable
 data class ImageProps(
     val src: String = "",
     val width: String? = null,
@@ -92,6 +103,18 @@ data class ButtonProps(
     val cornerRadius: String? = null,
     val width: String? = null,
     val height: String? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
+)
+
+@Serializable
+data class CarouselProps(
+    val width: String? = null,
+    val height: String? = null,
+    val itemPerPage: Int = 4,
+    val autoPlay: Boolean = false,
+    val loop: Boolean = false,
+    val interval: Long = 2000,
     val padding: SpacingProps? = null,
     val margin: SpacingProps? = null,
 )
@@ -157,6 +180,13 @@ data class TextNode(
 ) : DslNode
 
 @Serializable
+@SerialName("animatedText")
+data class AnimatedTextNode(
+    override val id: String? = null,
+    val props: AnimatedTextProps = AnimatedTextProps(),
+) : DslNode
+
+@Serializable
 @SerialName("image")
 data class ImageNode(
     override val id: String? = null,
@@ -195,14 +225,30 @@ data class BoxNode(
     override val children: List<DslNode> = emptyList(),
 ) : DslContainerNode
 
+@Serializable
+@SerialName("carousel")
+data class CarouselNode(
+    override val id: String? = null,
+    val props: CarouselProps = CarouselProps(),
+    val dataKey: String? = null,
+    val itemTemplate: DslNode? = null,
+) : DslNode
+
 // 数据绑定
 
 data class DataContext(
-    val fields: Map<String, String> = emptyMap()
+    val fields: Map<String, String> = emptyMap(),
+    val lists: Map<String, List<String>> = emptyMap(),
 ) {
     fun resolve(template: String): String = PLACEHOLDER_REGEX.replace(template) { match ->
         fields[match.groupValues[1]] ?: match.value
     }
+
+    fun resolveList(key: String): List<String> = lists[key] ?: emptyList()
+
+    fun withItem(item: String): DataContext = copy(
+        fields = fields + ("item" to item)
+    )
 
     companion object {
         private val PLACEHOLDER_REGEX = Regex("\\{(\\w+)\\}")
