@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
@@ -63,48 +64,104 @@ import org.jetbrains.compose.resources.painterResource
 @Composable
 fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsState()
+    val currentIdx by viewModel.currentIndex.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    Box {
-        when (val s = state) {
-            is RetentionUiState.Loading -> LoadingContent()
-            is RetentionUiState.Error -> {
-                var dismissed by remember { mutableStateOf(false) }
-                if (!dismissed) {
-                    Box(Modifier.fillMaxSize()) {
-                        ErrorContent(
-                            errors = s.errors,
-                            onDismiss = { dismissed = true },
-                            modifier = Modifier.align(Alignment.TopEnd),
-                        )
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 主内容区
+        Box(modifier = Modifier.weight(1f)) {
+            when (val s = state) {
+                is RetentionUiState.Loading -> LoadingContent()
+                is RetentionUiState.Error -> {
+                    var dismissed by remember { mutableStateOf(false) }
+                    if (!dismissed) {
+                        Box(Modifier.fillMaxSize()) {
+                            ErrorContent(
+                                errors = s.errors,
+                                onDismiss = { dismissed = true },
+                                modifier = Modifier.align(Alignment.TopEnd),
+                            )
+                        }
                     }
                 }
+                is RetentionUiState.Success -> DslRenderer(
+                    node = s.rootNode,
+                    dataContext = viewModel.dataContext,
+                    onEvent = { event ->
+                        when (event) {
+                            is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
+                            is UiEvent.Navigate -> {
+                                if (event.closeDialog) onDismiss()
+                                PlatformUtil.navigate(event.route)
+                            }
+                            is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
+                            is UiEvent.Dismiss -> onDismiss()
+                        }
+                    },
+                )
             }
-            is RetentionUiState.Success -> DslRenderer(
-                node = s.rootNode,
-                dataContext = viewModel.dataContext,
-                onEvent = { eventStr ->
-                    when {
-                        eventStr == "dismiss" -> onDismiss()
-                        eventStr.startsWith("track:") -> {
-                            val eventName = eventStr.removePrefix("track:")
-                            println("[Track] $eventName")
-                        }
-                        eventStr.startsWith("toast:") -> {
-                            val message = eventStr.removePrefix("toast:")
-                            scope.launch { snackbarHostState.showSnackbar(message) }
-                        }
-                        else -> println("[Event] $eventStr")
-                    }
-                },
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
+        // Tab 切换栏
+        val validSamples = viewModel.samples.filter { !it.isErrorDemo }
+        val errorSamples = viewModel.samples.filter { it.isErrorDemo }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 合法页面
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                validSamples.forEach { sample ->
+                    val idx = viewModel.samples.indexOf(sample)
+                    SampleTab(sample.name, isSelected = idx == currentIdx) { viewModel.switchSample(idx) }
+                }
+            }
+            // 错误演示
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "错误演示",
+                    fontSize = 11.sp,
+                    color = Color(0xFF999999.toInt()),
+                )
+                errorSamples.forEach { sample ->
+                    val idx = viewModel.samples.indexOf(sample)
+                    SampleTab(sample.name, isSelected = idx == currentIdx) { viewModel.switchSample(idx) }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun SampleTab(name: String, isSelected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = name,
+        fontSize = 12.sp,
+        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        color = if (isSelected) Color(0xFFFE315D.toInt()) else Color(0xFF666666.toInt()),
+        modifier = Modifier
+            .background(
+                color = if (isSelected) Color(0x1AFE315D) else Color(0xFFF5F5F5.toInt()),
+                shape = RoundedCornerShape(6.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
 }
 
 // ============================================================
@@ -186,12 +243,12 @@ private fun ErrorContent(errors: List<String>, onDismiss: () -> Unit, modifier: 
 fun DslRenderer(
     node: DslNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit = {},
+    onEvent: (UiEvent) -> Unit = {},
 ) {
     when (node) {
         is DialogNode -> RenderDialog(node, dataContext, onEvent)
         is TextNode -> RenderText(node, dataContext)
-        is ImageNode -> RenderImage(node)
+        is ImageNode -> RenderImage(node, dataContext)
         is ButtonNode -> RenderButton(node, dataContext, onEvent)
         is ColumnNode -> RenderColumn(node, dataContext, onEvent)
         is RowNode -> RenderRow(node, dataContext, onEvent)
@@ -207,7 +264,7 @@ fun DslRenderer(
 private fun RenderDialog(
     node: DialogNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit,
+    onEvent: (UiEvent) -> Unit,
 ) {
     val overlay = node.props.overlay
     val overlayColor = overlay?.let {
@@ -264,7 +321,7 @@ private fun RenderDialog(
                             Modifier.clickable(
                                 indication = null,
                                 interactionSource = remember { MutableInteractionSource() },
-                            ) { onEvent("dismiss") }
+                            ) { onEvent(UiEvent.Dismiss()) }
                         } else Modifier
                     ),
                 contentAlignment = Alignment.Center,
@@ -311,11 +368,12 @@ private fun RenderText(node: TextNode, dataContext: DataContext) {
 }
 
 @Composable
-private fun RenderImage(node: ImageNode) {
+private fun RenderImage(node: ImageNode, dataContext: DataContext) {
     val radius = node.props.cornerRadius?.parseDp()?.dp ?: 0.dp
     val width = node.props.width?.parseDp()?.dp ?: 48.dp
     val height = node.props.height?.parseDp()?.dp ?: 48.dp
-    val resource = imageResourceFor(node.props.src)
+    val resolvedSrc = dataContext.resolve(node.props.src)
+    val resource = imageResourceFor(resolvedSrc)
 
     if (resource != null) {
         Image(
@@ -357,7 +415,7 @@ private fun imageResourceFor(src: String): DrawableResource? = when (src) {
 private fun RenderButton(
     node: ButtonNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit,
+    onEvent: (UiEvent) -> Unit,
 ) {
     val bgColor = node.props.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } } ?: Color.Unspecified
 
@@ -378,7 +436,7 @@ private fun RenderButton(
     }
 
     Button(
-        onClick = { node.events?.onClick?.let { onEvent(it) } },
+        onClick = { node.events?.click?.let { onEvent(it) } },
         modifier = widthModifier
             .then(node.props.padding.toSpacingModifier())
             .then(node.props.margin.toSpacingModifier()),
@@ -403,7 +461,7 @@ private fun RenderButton(
 private fun RenderColumn(
     node: ColumnNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit,
+    onEvent: (UiEvent) -> Unit,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val gap = node.containerProps.gap?.parseDp()?.dp
@@ -430,7 +488,7 @@ private fun RenderColumn(
 private fun RenderRow(
     node: RowNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit,
+    onEvent: (UiEvent) -> Unit,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val gap = node.containerProps.gap?.parseDp()?.dp
@@ -462,7 +520,7 @@ private fun RenderRow(
 private fun RenderBox(
     node: BoxNode,
     dataContext: DataContext,
-    onEvent: (String) -> Unit,
+    onEvent: (UiEvent) -> Unit,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
 

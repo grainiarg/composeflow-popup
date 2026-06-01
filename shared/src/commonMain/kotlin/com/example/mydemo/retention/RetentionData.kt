@@ -110,9 +110,31 @@ data class ContainerProps(
 // 事件
 
 @Serializable
-data class EventConfig(
-    val onClick: String? = null,
+data class UiEvents(
+    val click: UiEvent? = null,
+    val show: UiEvent? = null,
 )
+
+@Serializable
+sealed class UiEvent {
+    abstract val type: String
+
+    @Serializable
+    @SerialName("toast")
+    data class Toast(override val type: String = "toast", val msg: String) : UiEvent()
+
+    @Serializable
+    @SerialName("navigate")
+    data class Navigate(override val type: String = "navigate", val route: String, val closeDialog: Boolean = false) : UiEvent()
+
+    @Serializable
+    @SerialName("track")
+    data class Track(override val type: String = "track", val eventId: String, val extra: String = "") : UiEvent()
+
+    @Serializable
+    @SerialName("dismiss")
+    data class Dismiss(override val type: String = "dismiss") : UiEvent()
+}
 
 // DSL 节点树
 
@@ -146,7 +168,7 @@ data class ImageNode(
 data class ButtonNode(
     override val id: String? = null,
     val props: ButtonProps = ButtonProps(),
-    val events: EventConfig? = null,
+    val events: UiEvents? = null,
 ) : DslNode
 
 @Serializable
