@@ -240,8 +240,22 @@ data class DataContext(
     val fields: Map<String, String> = emptyMap(),
     val lists: Map<String, List<String>> = emptyMap(),
 ) {
-    fun resolve(template: String): String = PLACEHOLDER_REGEX.replace(template) { match ->
-        fields[match.groupValues[1]] ?: match.value
+    fun resolve(template: String): String {
+        // Step 1: ternary expressions {key == 'val' ? 'a' : 'b'}
+        val afterTernary = TERNARY_REGEX.replace(template) { match ->
+            val key = match.groupValues[1]
+            val op = match.groupValues[2]
+            val compareVal = match.groupValues[3]
+            val trueVal = match.groupValues[4]
+            val falseVal = match.groupValues[5]
+            val actual = fields[key] ?: ""
+            val condition = if (op == "==") actual == compareVal else actual != compareVal
+            if (condition) trueVal else falseVal
+        }
+        // Step 2: simple placeholders {key}
+        return PLACEHOLDER_REGEX.replace(afterTernary) { match ->
+            fields[match.groupValues[1]] ?: match.value
+        }
     }
 
     fun resolveList(key: String): List<String> = lists[key] ?: emptyList()
@@ -252,6 +266,7 @@ data class DataContext(
 
     companion object {
         private val PLACEHOLDER_REGEX = Regex("\\{(\\w+)\\}")
+        private val TERNARY_REGEX = Regex("\\{(\\w+)\\s*(==|!=)\\s*'([^']*)'\\s*\\?\\s*'([^']*)'\\s*:\\s*'([^']*)'\\}")
     }
 }
 

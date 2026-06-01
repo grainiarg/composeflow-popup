@@ -84,6 +84,7 @@ fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
         Box(modifier = Modifier.weight(1f)) {
             when (val s = state) {
                 is RetentionUiState.Loading -> LoadingContent()
+                is RetentionUiState.Empty -> EmptyContent()
                 is RetentionUiState.Error -> {
                     var dismissed by remember { mutableStateOf(false) }
                     if (!dismissed) {
@@ -181,8 +182,25 @@ private fun SampleTab(name: String, isSelected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun LoadingContent() {
-    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator()
+            Spacer(Modifier.size(12.dp))
+            Text("加载中...", fontSize = 14.sp, color = Color(0xFF999999.toInt()))
+        }
+    }
+}
+
+@Composable
+private fun EmptyContent() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("📭", fontSize = 48.sp)
+            Spacer(Modifier.size(12.dp))
+            Text("暂无内容", fontSize = 16.sp, color = Color(0xFF999999.toInt()))
+            Spacer(Modifier.size(4.dp))
+            Text("当前弹窗无子组件", fontSize = 12.sp, color = Color(0xFFBDBDBD.toInt()))
+        }
     }
 }
 
@@ -450,6 +468,8 @@ private fun RenderImage(node: ImageNode, dataContext: DataContext) {
 
 private fun imageResourceFor(src: String): DrawableResource? = when (src) {
     "vip" -> Res.drawable.vip
+    "vip_badge" -> Res.drawable.vip
+    "svip_badge" -> Res.drawable.vip
     "bg_dialog" -> Res.drawable.bg_dialog
     "image1" -> Res.drawable.image1
     "image2" -> Res.drawable.image2

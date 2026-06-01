@@ -1,9 +1,12 @@
 package com.example.mydemo.retention
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class DslSample(
     val name: String,
@@ -19,15 +22,14 @@ class RetentionViewModel : ViewModel() {
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
-    val dataContext = DataContext(
-        fields = retentionData,
-        lists = mapOf("benefits" to listOf("image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8")),
-    )
+    var dataContext: DataContext = DataContext()
+        private set
 
     val samples: List<DslSample> = RetentionViewModel.samples
 
     companion object {
         val retentionData = mapOf(
+            "userLevel" to "VIP",
             "title" to "确定要放弃VIP优惠吗？",
             "discount" to "1",
             "unit" to "折",
@@ -36,12 +38,26 @@ class RetentionViewModel : ViewModel() {
             "btn_leave" to "狠心离开",
         )
 
+        val svipRetentionData = mapOf(
+            "userLevel" to "SVIP",
+            "title" to "SVIP专属优惠限时开启",
+            "discount" to "0.5",
+            "unit" to "折",
+            "subtitle" to "SVIP特权：专属客服+优先抢票+无限次高清导出",
+            "btn_stay" to "立即续费",
+            "btn_leave" to "暂不续费",
+        )
+
+        private val benefitsList = listOf("image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8")
+
         val samples = listOf(
             DslSample("标准VIP挽留", MockSamples.vipRetention),
+            DslSample("SVIP挽留", MockSamples.vipRetention),
             DslSample("简化弹窗", MockSamples.simpleDialog),
             DslSample("强提醒弹窗", MockSamples.strongDialog),
             DslSample("错误-非法尺寸", MockSamples.errorInvalidSize, isErrorDemo = true),
             DslSample("错误-非法颜色", MockSamples.errorInvalidColor, isErrorDemo = true),
+            DslSample("空数据", MockSamples.emptyDialog, isErrorDemo = true),
         )
     }
 
@@ -55,14 +71,30 @@ class RetentionViewModel : ViewModel() {
     }
 
     private fun loadSample(index: Int) {
-        try {
-            val result = DslParser.parse(samples[index].json)
-            when (result) {
-                is ParseResult.Success -> _uiState.value = RetentionUiState.Success(result.root)
-                is ParseResult.Failure -> _uiState.value = RetentionUiState.Error(result.errors)
+        _uiState.value = RetentionUiState.Loading
+        viewModelScope.launch {
+            delay(400)
+            val sample = samples[index]
+            dataContext = when (sample.name) {
+                "SVIP挽留" -> DataContext(fields = svipRetentionData, lists = mapOf("benefits" to benefitsList))
+                else -> DataContext(fields = retentionData, lists = mapOf("benefits" to benefitsList))
             }
-        } catch (e: Exception) {
-            _uiState.value = RetentionUiState.Error(listOf("DSL 加载异常: ${e.message}"))
+            try {
+                val result = DslParser.parse(sample.json)
+                when (result) {
+                    is ParseResult.Success -> {
+                        val root = result.root
+                        val isEmpty = when (root) {
+                            is DialogNode -> root.children.isEmpty()
+                            else -> false
+                        }
+                        _uiState.value = if (isEmpty) RetentionUiState.Empty else RetentionUiState.Success(root)
+                    }
+                    is ParseResult.Failure -> _uiState.value = RetentionUiState.Error(result.errors)
+                }
+            } catch (e: Exception) {
+                _uiState.value = RetentionUiState.Error(listOf("DSL 加载异常: ${e.message}"))
+            }
         }
     }
 }
@@ -108,7 +140,7 @@ private object MockSamples {
               {
                 "type": "image",
                 "id": "vip_badge_img",
-                "props": { "src": "vip", "width": "54dp", "height": "20dp" }
+                "props": { "src": "{userLevel == 'SVIP' ? 'svip_badge' : 'vip_badge'}", "width": "54dp", "height": "20dp" }
               }
             ]
           },
@@ -451,6 +483,29 @@ private object MockSamples {
         ]
       }
     ]
+  }
+}
+""".trimIndent()
+
+    val emptyDialog = """
+{
+  "version": "1.0",
+  "pageId": "empty_demo",
+  "content": {
+    "type": "dialog",
+    "id": "root_dialog",
+    "props": {
+      "width": "75%",
+      "maxWidth": "340dp",
+      "backgroundColor": "#FFFFFF",
+      "cornerRadius": "16dp",
+      "cancelable": true,
+      "overlay": {
+        "backgroundColor": "#000000",
+        "opacity": 0.5
+      }
+    },
+    "children": []
   }
 }
 """.trimIndent()
