@@ -1,0 +1,220 @@
+package com.example.mydemo.retention
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+internal val dslJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+}
+
+// ============================================================
+// 页面根模型
+// ============================================================
+
+@Serializable
+data class DslPage(
+    val version: String = "1.0",
+    val pageId: String = "",
+    val content: DslNode = DialogNode(),
+)
+
+// ============================================================
+// Dialog
+// ============================================================
+
+@Serializable
+data class OverlayProps(
+    val backgroundColor: String = "#000000",
+    val opacity: Float = 0.6f,
+)
+
+@Serializable
+data class DialogProps(
+    val width: String = "315dp",
+    val backgroundColor: String? = null,
+    val backgroundImage: String? = null,
+    val cornerRadius: String = "16dp",
+    val cancelable: Boolean = false,
+    val overlay: OverlayProps? = null,
+)
+
+@Serializable
+@SerialName("dialog")
+data class DialogNode(
+    override val id: String? = null,
+    val props: DialogProps = DialogProps(),
+    override val children: List<DslNode> = emptyList(),
+) : DslContainerNode {
+    override val containerProps = ContainerProps()
+}
+
+// ============================================================
+// 间距模型
+// ============================================================
+
+@Serializable
+data class SpacingProps(
+    val top: String? = null,
+    val bottom: String? = null,
+    val left: String? = null,
+    val right: String? = null,
+)
+
+// ============================================================
+// 组件属性
+// ============================================================
+
+@Serializable
+data class TextProps(
+    val text: String = "",
+    val fontSize: String? = null,
+    val color: String? = null,
+    val fontWeight: String? = null,
+    val textAlign: String? = null,
+    val maxLines: Int? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
+)
+
+@Serializable
+data class ImageProps(
+    val src: String = "",
+    val width: String? = null,
+    val height: String? = null,
+    val paddingHorizontal: String? = null,
+    val paddingVertical: String? = null,
+    val cornerRadius: String? = null,
+)
+
+@Serializable
+data class ButtonProps(
+    val text: String = "",
+    val fontSize: String? = null,
+    val textColor: String? = null,
+    val backgroundColor: String? = null,
+    val cornerRadius: String? = null,
+    val width: String? = null,
+    val height: String? = null,
+    val paddingHorizontal: String? = null,
+    val paddingVertical: String? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
+)
+
+@Serializable
+data class ContainerProps(
+    val width: String? = null,
+    val padding: SpacingProps? = null,
+    val margin: SpacingProps? = null,
+    val backgroundColor: String? = null,
+    val alignItems: String? = null,
+    val justifyContent: String? = null,
+    val gap: String? = null,
+)
+
+// ============================================================
+// 事件
+// ============================================================
+
+@Serializable
+data class EventConfig(
+    val onClick: String? = null,
+)
+
+// ============================================================
+// DSL 节点树
+// ============================================================
+
+@Serializable
+sealed interface DslNode {
+    val id: String?
+}
+
+@Serializable
+sealed interface DslContainerNode : DslNode {
+    val containerProps: ContainerProps
+    val children: List<DslNode>
+}
+
+@Serializable
+@SerialName("text")
+data class TextNode(
+    override val id: String? = null,
+    val props: TextProps = TextProps(),
+) : DslNode
+
+@Serializable
+@SerialName("image")
+data class ImageNode(
+    override val id: String? = null,
+    val props: ImageProps = ImageProps(),
+) : DslNode
+
+@Serializable
+@SerialName("button")
+data class ButtonNode(
+    override val id: String? = null,
+    val props: ButtonProps = ButtonProps(),
+    val events: EventConfig? = null,
+) : DslNode
+
+@Serializable
+@SerialName("column")
+data class ColumnNode(
+    override val id: String? = null,
+    @SerialName("props") override val containerProps: ContainerProps = ContainerProps(),
+    override val children: List<DslNode> = emptyList(),
+) : DslContainerNode
+
+@Serializable
+@SerialName("row")
+data class RowNode(
+    override val id: String? = null,
+    @SerialName("props") override val containerProps: ContainerProps = ContainerProps(),
+    override val children: List<DslNode> = emptyList(),
+) : DslContainerNode
+
+@Serializable
+@SerialName("box")
+data class BoxNode(
+    override val id: String? = null,
+    @SerialName("props") override val containerProps: ContainerProps = ContainerProps(),
+    override val children: List<DslNode> = emptyList(),
+) : DslContainerNode
+
+// ============================================================
+// 数据绑定
+// ============================================================
+
+data class DataContext(
+    val fields: Map<String, String> = emptyMap()
+) {
+    fun resolve(template: String): String {
+        val regex = Regex("\\{(\\w+)\\}")
+        return regex.replace(template) { match ->
+            fields[match.groupValues[1]] ?: match.value
+        }
+    }
+}
+
+// ============================================================
+// 工具函数
+// ============================================================
+
+internal fun parseHexColor(hex: String): Int? {
+    val sanitized = hex.removePrefix("#")
+    if (sanitized.length !in listOf(6, 8)) return null
+    return try {
+        val value = sanitized.toLong(16)
+        if (sanitized.length == 6) (0xFF000000L or value).toInt() else value.toInt()
+    } catch (_: NumberFormatException) {
+        null
+    }
+}
+
+internal fun String.parseDp(): Float? = removeSuffix("dp").toFloatOrNull()
+
+internal fun String.parseSp(): Float? = removeSuffix("sp").toFloatOrNull()
