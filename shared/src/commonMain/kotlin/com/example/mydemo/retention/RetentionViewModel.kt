@@ -39,7 +39,8 @@ private object MockDsl {
     "type": "dialog",
     "id": "root_dialog",
     "props": {
-      "width": "315dp",
+      "width": "75%",
+      "maxWidth": "360dp",
       "backgroundImage": "bg_dialog",
       "cancelable": false,
       "overlay": {
@@ -62,7 +63,8 @@ private object MockDsl {
             "id": "vip_badge_wrapper",
             "props": {
               "width": "100%",
-              "justifyContent": "flex-start"
+              "justifyContent": "flex-start",
+              "margin":{ "top": "10dp" }
             },
             "children": [
               {
@@ -81,10 +83,10 @@ private object MockDsl {
             "id": "title",
             "props": {
               "text": "确定要放弃VIP优惠吗？",
-              "fontSize": "18sp",
+              "fontSize": "19sp",
               "color": "#1A1A1A",
               "fontWeight": "bold",
-              "margin": { "top": "24dp", "bottom": "16dp" }
+              "margin": { "top": "28dp", "bottom": "16dp" }
             }
           },
           {
@@ -93,7 +95,7 @@ private object MockDsl {
             "props": {
               "alignItems": "baseline",
               "justifyContent": "center",
-              "margin": { "bottom": "36dp" }
+              "margin": { "top": "2dp", "bottom": "14dp" }
             },
             "children": [
               {
@@ -101,9 +103,10 @@ private object MockDsl {
                 "id": "discount_num",
                 "props": {
                   "text": "1",
-                  "fontSize": "72sp",
+                  "fontSize": "80sp",
                   "color": "#1A1A1A",
-                  "fontWeight": "bold"
+                  "fontWeight": "bold",
+                  "includeFontPadding": false
                 }
               },
               {
@@ -114,7 +117,8 @@ private object MockDsl {
                   "fontSize": "24sp",
                   "color": "#1A1A1A",
                   "fontWeight": "bold",
-                  "margin": { "left": "4dp" }
+                  "includeFontPadding": false,
+                  "margin": { "left": "2dp" }
                 }
               }
             ]
@@ -126,15 +130,16 @@ private object MockDsl {
               "text": "365万+会员权益等你来体验",
               "fontSize": "12sp",
               "color": "#999999",
-              "margin": { "bottom": "0dp" }
+              "margin": { "top": "6dp","bottom": "12dp" }
             }
           },
           {
             "type": "row",
             "id": "benefits_list",
             "props": {
+              "justifyContent": "center",
               "gap": "8dp",
-              "margin": { "bottom": "32dp" }
+              "margin": { "bottom": "12dp" }
             },
             "children": [
               { "type": "image", "props": { "src": "image1", "width": "56dp", "height": "56dp", "cornerRadius": "8dp" } },
@@ -150,7 +155,7 @@ private object MockDsl {
               "text": "我再想想",
               "textColor": "#FFFFFF",
               "backgroundColor": "#FE315D",
-              "width": "248dp",
+              "width": "fillMaxWidth",
               "height": "48dp",
               "cornerRadius": "8dp",
               "fontSize": "16sp"
@@ -166,7 +171,7 @@ private object MockDsl {
               "text": "狠心离开",
               "textColor": "#666666",
               "backgroundColor": "transparent",
-              "width": "248dp",
+              "width": "fillMaxWidth",
               "height": "44dp",
               "cornerRadius": "8dp",
               "fontSize": "14sp",

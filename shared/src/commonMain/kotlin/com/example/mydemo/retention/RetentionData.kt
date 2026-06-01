@@ -33,7 +33,9 @@ data class OverlayProps(
 
 @Serializable
 data class DialogProps(
-    val width: String = "315dp",
+    val width: String = "85%",
+    val maxWidth: String? = "360dp",
+    val minWidth: String? = null,
     val backgroundColor: String? = null,
     val backgroundImage: String? = null,
     val cornerRadius: String = "16dp",
@@ -75,6 +77,8 @@ data class TextProps(
     val fontWeight: String? = null,
     val textAlign: String? = null,
     val maxLines: Int? = null,
+    val lineHeight: String? = null,
+    val includeFontPadding: Boolean? = null,
     val padding: SpacingProps? = null,
     val margin: SpacingProps? = null,
 )
@@ -215,6 +219,16 @@ internal fun parseHexColor(hex: String): Int? {
     }
 }
 
-internal fun String.parseDp(): Float? = removeSuffix("dp").toFloatOrNull()
+internal fun String.parseDp(referenceDp: Float? = null): Float? {
+    if (endsWith("%")) {
+        val pct = removeSuffix("%").toFloatOrNull() ?: return null
+        return referenceDp?.let { it * pct / 100f }
+    }
+    removeSuffix("dp").toFloatOrNull()?.let { return it }
+    return toFloatOrNull()
+}
 
-internal fun String.parseSp(): Float? = removeSuffix("sp").toFloatOrNull()
+internal fun String.parseSp(): Float? {
+    removeSuffix("sp").toFloatOrNull()?.let { return it }
+    return toFloatOrNull()
+}

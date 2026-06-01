@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,10 +36,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.launch
 import mydemo.shared.generated.resources.Res
 import mydemo.shared.generated.resources.bg_dialog
@@ -142,59 +147,71 @@ private fun RenderDialog(
         Color(base).copy(alpha = it.opacity)
     }
 
-    val cardWidth = node.props.width.parseDp()?.dp ?: 315.dp
     val cardRadius = node.props.cornerRadius?.parseDp()?.dp
     val cardBg = node.props.backgroundColor?.let {
         if (it == "transparent") Color.Transparent else parseHexColor(it)?.let { c -> Color(c) }
     }
     val bgImage = node.props.backgroundImage?.let { imageResourceFor(it) }
 
-    val cardContent: @Composable () -> Unit = {
-        Box(
-            modifier = Modifier
-                .width(cardWidth)
-                .then(cardRadius?.let { Modifier.clip(RoundedCornerShape(it)) } ?: Modifier)
-                .then(cardBg?.let { Modifier.background(it) } ?: Modifier),
-        ) {
-            if (bgImage != null) {
-                Image(
-                    painter = painterResource(bgImage),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit,
-                )
-            }
-            Column(modifier = Modifier.fillMaxWidth()) {
-                node.children.forEach { child ->
-                    DslRenderer(child, dataContext, onEvent)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenWidthDp = maxWidth.value
+
+        val cardWidth = node.props.width.parseDp(referenceDp = screenWidthDp)?.dp ?: 315.dp
+        val maxW = node.props.maxWidth?.parseDp(referenceDp = screenWidthDp)?.dp
+        val minW = node.props.minWidth?.parseDp(referenceDp = screenWidthDp)?.dp
+        val finalWidth = when {
+            maxW != null && cardWidth > maxW -> maxW
+            minW != null && cardWidth < minW -> minW
+            else -> cardWidth
+        }
+
+        val cardContent: @Composable () -> Unit = {
+            Box(
+                modifier = Modifier
+                    .width(finalWidth)
+                    .then(cardRadius?.let { Modifier.clip(RoundedCornerShape(it)) } ?: Modifier)
+                    .then(cardBg?.let { Modifier.background(it) } ?: Modifier),
+            ) {
+                if (bgImage != null) {
+                    Image(
+                        painter = painterResource(bgImage),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    node.children.forEach { child ->
+                        DslRenderer(child, dataContext, onEvent)
+                    }
                 }
             }
         }
-    }
 
-    if (overlayColor != null) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(overlayColor)
-                .then(
-                    if (node.props.cancelable) {
-                        Modifier.clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                        ) { onEvent("dismiss") }
-                    } else Modifier
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            cardContent()
-        }
-    } else {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            cardContent()
+        if (overlayColor != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(overlayColor)
+                    .then(
+                        if (node.props.cancelable) {
+                            Modifier.clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() },
+                            ) { onEvent("dismiss") }
+                        } else Modifier
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                cardContent()
+            }
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                cardContent()
+            }
         }
     }
 }
@@ -205,6 +222,7 @@ private fun RenderDialog(
 
 @Composable
 private fun RenderText(node: TextNode, dataContext: DataContext) {
+    val noFontPadding = node.props.includeFontPadding == false
     Text(
         text = dataContext.resolve(node.props.text),
         fontSize = node.props.fontSize?.parseSp()?.sp ?: 14.sp,
@@ -213,6 +231,14 @@ private fun RenderText(node: TextNode, dataContext: DataContext) {
         textAlign = parseTextAlign(node.props.textAlign),
         maxLines = node.props.maxLines ?: Int.MAX_VALUE,
         overflow = TextOverflow.Ellipsis,
+        style = TextStyle(
+            platformStyle = if (noFontPadding) PlatformTextStyle(includeFontPadding = false) else null,
+            lineHeight = node.props.lineHeight?.parseSp()?.sp ?: TextUnit.Unspecified,
+            lineHeightStyle = if (noFontPadding) LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Proportional,
+                trim = LineHeightStyle.Trim.Both,
+            ) else null,
+        ),
         modifier = Modifier
             .then(node.props.padding.toSpacingModifier())
             .then(node.props.margin.toSpacingModifier()),
@@ -342,6 +368,7 @@ private fun RenderRow(
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val gap = node.containerProps.gap?.parseDp()?.dp
+    val isBaseline = node.containerProps.alignItems == "baseline"
 
     Row(
         modifier = Modifier
@@ -350,10 +377,14 @@ private fun RenderRow(
             .then(node.containerProps.margin.toSpacingModifier())
             .fillMaxWidth(),
         horizontalArrangement = parseRowJustify(node.containerProps.justifyContent),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = parseRowVerticalAlign(node.containerProps.alignItems),
     ) {
         node.children.forEachIndexed { index, child ->
-            DslRenderer(child, dataContext, onEvent)
+            if (isBaseline) {
+                Box(Modifier.alignByBaseline()) { DslRenderer(child, dataContext, onEvent) }
+            } else {
+                DslRenderer(child, dataContext, onEvent)
+            }
             if (gap != null && index < node.children.lastIndex) {
                 Spacer(Modifier.size(gap))
             }
@@ -411,6 +442,14 @@ private fun parseJustifyContent(value: String?): Arrangement.Vertical = when (va
     "bottom" -> Arrangement.Bottom
     "spaceBetween" -> Arrangement.SpaceBetween
     else -> Arrangement.Top
+}
+
+private fun parseRowVerticalAlign(value: String?): Alignment.Vertical = when (value) {
+    "start", "flex-start" -> Alignment.Top
+    "end", "flex-end" -> Alignment.Bottom
+    "center" -> Alignment.CenterVertically
+    "baseline" -> Alignment.Top  // 基线对齐由子元素的 Modifier.alignByBaseline() 控制
+    else -> Alignment.CenterVertically
 }
 
 private fun parseRowJustify(value: String?): Arrangement.Horizontal = when (value) {
