@@ -20,7 +20,28 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+val keystoreProperties = file("keystore.properties").readLines()
+    .filter { it.contains("=") }
+    .associate {
+        val (k, v) = it.split("=", limit = 2)
+        k.trim() to v.trim()
+    }
+
+val keystoreFile = file(keystoreProperties["storeFile"]!!)
+val keystorePassword = keystoreProperties["storePassword"]!!
+val keystoreAlias = keystoreProperties["keyAlias"]!!
+val keystoreKeyPassword = keystoreProperties["keyPassword"]!!
+
 android {
+    signingConfigs {
+        create("release") {
+            storeFile = keystoreFile
+            storePassword = keystorePassword
+            keyAlias = keystoreAlias
+            keyPassword = keystoreKeyPassword
+        }
+    }
+
     namespace = "com.example.mydemo"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
@@ -39,6 +60,7 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
