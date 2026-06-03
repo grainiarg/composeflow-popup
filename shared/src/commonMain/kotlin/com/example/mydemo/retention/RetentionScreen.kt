@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -513,20 +514,17 @@ private fun RenderDialog(
         }
 
         val cardContent: @Composable () -> Unit = {
+            val bgPainter = bgImage?.let { painterResource(it) }
             Box(
                 modifier = Modifier
                     .width(finalWidth)
                     .then(cardRadius?.let { Modifier.clip(RoundedCornerShape(it)) } ?: Modifier)
-                    .then(cardBg?.let { Modifier.background(it) } ?: Modifier),
+                    .then(cardBg?.let { Modifier.background(it) } ?: Modifier)
+                    .then(if (bgPainter != null) Modifier.drawWithContent {
+                        with(bgPainter) { draw(size) }
+                        drawContent()
+                    } else Modifier),
             ) {
-                if (bgImage != null) {
-                    Image(
-                        painter = painterResource(bgImage),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
                 Column(modifier = Modifier.fillMaxWidth()) {
                     node.children.forEachIndexed { i, child ->
                         DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$i]")
