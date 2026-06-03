@@ -80,6 +80,7 @@ data class AnimatedTextProps(
     val color: String? = null,
     val fontWeight: String? = null,
     val animate: String? = null,
+    val animateFrom: String? = null,
     val padding: SpacingProps? = null,
     val margin: SpacingProps? = null,
 )
@@ -297,3 +298,5 @@ internal fun String.parseSp(): Float? {
     removeSuffix("sp").toFloatOrNull()?.let { return it }
     return toFloatOrNull()
 }
+
+internal fun String.parseNumber(): Float? = toFloatOrNull()

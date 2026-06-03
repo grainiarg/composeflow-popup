@@ -20,6 +20,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,20 +58,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import mydemo.shared.generated.resources.Res
-import mydemo.shared.generated.resources.bg_dialog
-import mydemo.shared.generated.resources.svip
-import mydemo.shared.generated.resources.vip
-import mydemo.shared.generated.resources.image4
-import mydemo.shared.generated.resources.image5
-import mydemo.shared.generated.resources.image6
-import mydemo.shared.generated.resources.image7
-import mydemo.shared.generated.resources.image8
-import mydemo.shared.generated.resources.image3
-import mydemo.shared.generated.resources.image2
-import mydemo.shared.generated.resources.image1
+import composeflow_popup.shared.generated.resources.Res
+import composeflow_popup.shared.generated.resources.bg_dialog
+import composeflow_popup.shared.generated.resources.svip
+import composeflow_popup.shared.generated.resources.vip
+import composeflow_popup.shared.generated.resources.image4
+import composeflow_popup.shared.generated.resources.image5
+import composeflow_popup.shared.generated.resources.image6
+import composeflow_popup.shared.generated.resources.image7
+import composeflow_popup.shared.generated.resources.image8
+import composeflow_popup.shared.generated.resources.image3
+import composeflow_popup.shared.generated.resources.image2
+import composeflow_popup.shared.generated.resources.image1
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 
@@ -100,22 +102,51 @@ fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
                     }
                 }
                 is RetentionUiState.Success -> {
-                    DslRenderer(
-                        node = s.rootNode,
-                        dataContext = viewModel.dataContext,
-                        onEvent = { event ->
-                            when (event) {
-                                is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
-                                is UiEvent.Navigate -> {
-                                    if (event.closeDialog) onDismiss()
-                                    PlatformUtil.navigate(event.route)
+                    if (s.warnings.isNotEmpty()) {
+                        Box(Modifier.fillMaxSize()) {
+                            DslRenderer(
+                                node = s.rootNode,
+                                dataContext = viewModel.dataContext,
+                                onEvent = { event ->
+                                    when (event) {
+                                        is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
+                                        is UiEvent.Navigate -> {
+                                            if (event.closeDialog) onDismiss()
+                                            PlatformUtil.navigate(event.route)
+                                        }
+                                        is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
+                                        is UiEvent.Dismiss -> onDismiss()
+                                    }
+                                },
+                                allWarnings = s.warnings,
+                            )
+                            WarningsPanel(
+                                warnings = s.warnings,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .zIndex(10f)
+                                    .statusBarsPadding()
+                                    .padding(top = 8.dp, start = 16.dp, end = 16.dp),
+                            )
+                        }
+                    } else {
+                        DslRenderer(
+                            node = s.rootNode,
+                            dataContext = viewModel.dataContext,
+                            onEvent = { event ->
+                                when (event) {
+                                    is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
+                                    is UiEvent.Navigate -> {
+                                        if (event.closeDialog) onDismiss()
+                                        PlatformUtil.navigate(event.route)
+                                    }
+                                    is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
+                                    is UiEvent.Dismiss -> onDismiss()
                                 }
-                                is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
-                                is UiEvent.Dismiss -> onDismiss()
-                            }
-                        },
-                        allWarnings = s.warnings,
-                    )
+                            },
+                            allWarnings = s.warnings,
+                        )
+                    }
                 }
             }
             SnackbarHost(
@@ -322,6 +353,87 @@ private fun WarningBadge(
 }
 
 // ============================================================
+// 警告汇总面板
+// ============================================================
+
+@Composable
+private fun WarningsPanel(
+    warnings: List<ParseError>,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0.toInt())),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "⚠ 检测到 ${warnings.size} 个警告",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFE65100.toInt()),
+                    )
+                    Text(
+                        text = if (expanded) "▲" else "▼",
+                        fontSize = 12.sp,
+                        color = Color(0xFFE65100.toInt()),
+                    )
+                }
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    warnings.forEach { w ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1.toInt())),
+                            shape = RoundedCornerShape(4.dp),
+                        ) {
+                            Column(Modifier.padding(8.dp)) {
+                                Text(
+                                    text = w.message,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE65100.toInt()),
+                                )
+                                Text(
+                                    text = w.path,
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFBFBFBF.toInt()),
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "弹窗已降级渲染，可正常交互",
+                        fontSize = 11.sp,
+                        color = Color(0xFFFFA726.toInt()),
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
 // 渲染引擎
 // ============================================================
 
@@ -482,12 +594,14 @@ private fun RenderText(node: TextNode, dataContext: DataContext) {
 private fun RenderAnimatedText(node: AnimatedTextNode, dataContext: DataContext) {
     val resolved = dataContext.resolve(node.props.text)
     val targetNumber = resolved.toFloatOrNull() ?: 0f
-    val animatedValue = remember { Animatable(0f) }
+    val startValue = node.props.animateFrom?.parseNumber() ?: 0f
+    val animatedValue = remember { Animatable(startValue) }
 
     LaunchedEffect(targetNumber) {
+        animatedValue.snapTo(startValue)
         animatedValue.animateTo(
             targetValue = targetNumber,
-            animationSpec = tween(durationMillis = 1000),
+            animationSpec = tween(durationMillis = 1500),
         )
     }
 

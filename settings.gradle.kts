@@ -1,4 +1,4 @@
-rootProject.name = "MyDemo"
+rootProject.name = "composeflow-popup"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

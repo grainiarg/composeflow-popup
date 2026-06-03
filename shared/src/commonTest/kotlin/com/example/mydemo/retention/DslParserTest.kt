@@ -6,20 +6,19 @@ import kotlin.test.assertTrue
 
 class DslParserTest {
 
-    // 取值非法（组件降级）: 非法属性值在子组件上，各自独立降级
-    private val errorInvalidValueJson = """
+    // 基于标准 VIP 挽留 DSL，注入 4 个故意的属性错误
+    private val vipRetentionWithWarningsJson = """
 {
   "version": "1.0",
-  "pageId": "error_invalid_value",
+  "pageId": "vip_retention_warn_001",
   "content": {
     "type": "dialog",
     "id": "root_dialog",
     "props": {
       "width": "75%",
       "maxWidth": "360dp",
-      "backgroundColor": "#FFFFFF",
-      "cornerRadius": "16dp",
-      "cancelable": true,
+      "backgroundImage": "bg_dialog",
+      "cancelable": false,
       "overlay": {
         "backgroundColor": "#000000",
         "opacity": 0.6
@@ -30,204 +29,139 @@ class DslParserTest {
         "type": "column",
         "id": "main_content",
         "props": {
+          "width": "100%",
           "alignItems": "center",
-          "padding": { "top": "24dp", "bottom": "24dp", "left": "20dp", "right": "20dp" }
+          "padding": { "top": "24dp", "bottom": "24dp", "left": "24dp", "right": "24dp" }
         },
         "children": [
+          {
+            "type": "row",
+            "id": "vip_badge_wrapper",
+            "props": {
+              "width": "100%",
+              "justifyContent": "flex-start",
+              "margin":{ "top": "10dp" }
+            },
+            "children": [
+              {
+                "type": "image",
+                "id": "vip_badge_img",
+                "props": { "src": "vip", "width": "54dp", "height": "20dp" }
+              }
+            ]
+          },
           {
             "type": "text",
             "id": "title",
             "props": {
-              "text": "取值非法演示",
-              "fontSize": "18sp",
+              "text": "确定要放弃VIP优惠吗？",
+              "fontSize": "big",
               "color": "#1A1A1A",
               "fontWeight": "bold",
-              "margin": { "bottom": "8dp" }
-            }
-          },
-          {
-            "type": "text",
-            "id": "desc",
-            "props": {
-              "text": "以下组件属性值非法，已降级为默认值",
-              "fontSize": "13sp",
-              "color": "#999999",
-              "margin": { "bottom": "20dp" }
+              "margin": { "top": "28dp", "bottom": "16dp" }
             }
           },
           {
             "type": "row",
-            "id": "invalid_props_row",
+            "id": "discount_wrapper",
             "props": {
+              "alignItems": "baseline",
               "justifyContent": "center",
-              "gap": "12dp",
-              "margin": { "bottom": "16dp" }
+              "margin": { "top": "2dp", "bottom": "14dp" }
             },
             "children": [
               {
-                "type": "text",
-                "id": "bad_font",
+                "type": "animatedText",
+                "id": "discount_num",
                 "props": {
-                  "text": "字号非法: big",
-                  "fontSize": "big",
-                  "color": "#D32F2F"
+                  "text": "1",
+                  "fontSize": "80sp",
+                  "color": "#GG0000",
+                  "fontWeight": "bold",
+                  "animate": "numberScroll"
                 }
               },
               {
                 "type": "text",
-                "id": "bad_color",
+                "id": "discount_unit",
                 "props": {
-                  "text": "颜色非法: #GG0000",
-                  "fontSize": "14sp",
-                  "color": "#GG0000"
+                  "text": "折",
+                  "fontSize": "24sp",
+                  "color": "#1A1A1A",
+                  "fontWeight": "bold",
+                  "includeFontPadding": false,
+                  "margin": { "left": "2dp" }
                 }
               }
             ]
           },
           {
-            "type": "image",
-            "id": "bad_width_img",
-            "props": {
-              "src": "vip",
-              "width": "wide",
-              "height": "48dp",
-              "margin": { "bottom": "16dp" }
-            }
-          },
-          {
             "type": "text",
-            "id": "hint",
+            "id": "subtitle",
             "props": {
-              "text": "每个组件右上角有 警告，点击查看详情",
+              "text": "365万+会员权益等你来体验",
               "fontSize": "12sp",
-              "color": "#FFA726",
-              "margin": { "bottom": "20dp" }
+              "color": "#999999",
+              "margin": { "top": "6dp","bottom": "12dp" }
             }
           },
           {
-            "type": "button",
-            "id": "btn_ok",
+            "type": "carousel",
+            "id": "benefits_carousel",
             "props": {
-              "text": "知道了",
-              "textColor": "#FFFFFF",
-              "backgroundColor": "#FE315D",
-              "width": "fillMaxWidth",
-              "height": "44dp",
-              "cornerRadius": "8dp",
-              "fontSize": "15sp"
+              "width": "100%",
+              "height": "auto",
+              "itemPerPage": 4,
+              "autoPlay": true,
+              "loop": true,
+              "interval": 2000,
+              "margin": { "bottom": "12dp" }
             },
-            "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
-          }
-        ]
-      }
-    ]
-  }
-}
-""".trimIndent()
-
-    // 字段缺失（组件降级）: 缺少必要字段，降级为占位符
-    private val errorMissingFieldJson = """
-{
-  "version": "1.0",
-  "pageId": "error_missing_field",
-  "content": {
-    "type": "dialog",
-    "id": "root_dialog",
-    "props": {
-      "width": "75%",
-      "maxWidth": "360dp",
-      "backgroundColor": "#FFFFFF",
-      "cornerRadius": "16dp",
-      "cancelable": true,
-      "overlay": {
-        "backgroundColor": "#000000",
-        "opacity": 0.6
-      }
-    },
-    "children": [
-      {
-        "type": "column",
-        "id": "main_content",
-        "props": {
-          "alignItems": "center",
-          "padding": { "top": "24dp", "bottom": "24dp", "left": "20dp", "right": "20dp" }
-        },
-        "children": [
+            "dataKey": "benefits",
+            "itemTemplate": {
+              "type": "image",
+              "props": {
+                "src": "{item}",
+                "width": "56dp",
+                "height": "56dp",
+                "cornerRadius": "8dp"
+              }
+            }
+          },
           {
             "type": "text",
-            "id": "title",
+            "id": "empty_placeholder",
             "props": {
-              "text": "字段缺失演示",
-              "fontSize": "18sp",
-              "color": "#1A1A1A",
-              "fontWeight": "bold",
+              "text": "",
+              "fontSize": "12sp",
               "margin": { "bottom": "8dp" }
             }
           },
           {
-            "type": "text",
-            "id": "desc",
-            "props": {
-              "text": "以下组件缺少必要字段，已降级为占位符",
-              "fontSize": "13sp",
-              "color": "#999999",
-              "margin": { "bottom": "20dp" }
-            }
-          },
-          {
-            "type": "text",
-            "id": "empty_text",
-            "props": {
-              "text": "",
-              "fontSize": "14sp",
-              "margin": { "bottom": "12dp" }
-            }
-          },
-          {
-            "type": "image",
-            "id": "empty_src_img",
-            "props": {
-              "src": "",
-              "width": "48dp",
-              "height": "48dp",
-              "margin": { "bottom": "12dp" }
-            }
-          },
-          {
             "type": "button",
-            "id": "empty_btn",
+            "id": "btn_stay",
             "props": {
-              "text": "",
-              "backgroundColor": "#E0E0E0",
-              "width": "fillMaxWidth",
-              "height": "44dp",
-              "cornerRadius": "8dp",
-              "fontSize": "14sp",
-              "margin": { "bottom": "20dp" }
-            },
-            "events": { "click": { "type": "track", "eventId": "click_empty_btn" } }
-          },
-          {
-            "type": "text",
-            "id": "hint",
-            "props": {
-              "text": "每个缺失组件右上角有 警告，点击查看详情",
-              "fontSize": "12sp",
-              "color": "#FFA726",
-              "margin": { "bottom": "20dp" }
-            }
-          },
-          {
-            "type": "button",
-            "id": "btn_ok",
-            "props": {
-              "text": "知道了",
+              "text": "我再想想",
               "textColor": "#FFFFFF",
               "backgroundColor": "#FE315D",
               "width": "fillMaxWidth",
-              "height": "44dp",
+              "height": "48dp",
               "cornerRadius": "8dp",
-              "fontSize": "15sp"
+              "fontSize": "16sp"
+            },
+            "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
+          },
+          {
+            "type": "button",
+            "id": "btn_leave",
+            "props": {
+              "text": "狠心离开",
+              "textColor": "#666666",
+              "backgroundColor": "transparent",
+              "width": "fillMaxWidth",
+              "height": "48dp",
+              "cornerRadius": "8dp",
+              "fontSize": "16sp"
             },
             "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
           }
@@ -239,27 +173,16 @@ class DslParserTest {
 """.trimIndent()
 
     @Test
-    fun `error invalid value should succeed with 3 warnings on child components`() {
-        val result = DslParser.parse(errorInvalidValueJson)
+    fun `vip retention with warnings should succeed with 4 warnings`() {
+        val result = DslParser.parse(vipRetentionWithWarningsJson)
         assertTrue(result is ParseResult.Success, "Expected Success but got: $result")
         val success = result as ParseResult.Success
-        assertEquals(3, success.warnings.size, "Expected 3 warnings but got ${success.warnings}")
+        assertEquals(4, success.warnings.size, "Expected 4 warnings but got ${success.warnings}")
         val paths = success.warnings.map { it.path }.toSet()
-        assertTrue("root.children[0].children[2].children[0].props.fontSize" in paths)
-        assertTrue("root.children[0].children[2].children[1].props.color" in paths)
-        assertTrue("root.children[0].children[3].props.width" in paths)
-    }
-
-    @Test
-    fun `error missing field should succeed with 3 warnings on child components`() {
-        val result = DslParser.parse(errorMissingFieldJson)
-        assertTrue(result is ParseResult.Success, "Expected Success but got: $result")
-        val success = result as ParseResult.Success
-        assertEquals(3, success.warnings.size, "Expected 3 warnings but got ${success.warnings}")
-        val paths = success.warnings.map { it.path }.toSet()
-        assertTrue("root.children[0].children[2]" in paths)
-        assertTrue("root.children[0].children[3]" in paths)
-        assertTrue("root.children[0].children[4]" in paths)
+        assertTrue("root.children[0].children[1].props.fontSize" in paths, "missing fontSize warning")
+        assertTrue("root.children[0].children[2].children[0].props.color" in paths, "missing color warning")
+        assertTrue("root.children[0].children[4].props.height" in paths, "missing height warning")
+        assertTrue("root.children[0].children[5]" in paths, "missing empty text warning")
     }
 
     @Test

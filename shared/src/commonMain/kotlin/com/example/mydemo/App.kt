@@ -14,8 +14,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.example.mydemo.retention.RetentionScreen
 import com.example.mydemo.retention.RetentionViewModel
-import mydemo.shared.generated.resources.Res
-import mydemo.shared.generated.resources.background
+import composeflow_popup.shared.generated.resources.Res
+import composeflow_popup.shared.generated.resources.background
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
