@@ -20,6 +20,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -499,7 +500,7 @@ private fun RenderDialog(
     val cardBg = node.props.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val bgImage = node.props.backgroundImage?.let { imageResourceFor(it) }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         val screenWidthDp = maxWidth.value
 
         val cardWidth = node.props.width.parseDp(referenceDp = screenWidthDp)?.dp ?: 315.dp
