@@ -30,22 +30,14 @@ class RetentionViewModel : ViewModel() {
     companion object {
         val retentionData = mapOf(
             "userLevel" to "VIP",
-            "title" to "确定要放弃VIP优惠吗？",
             "discount" to "1",
             "unit" to "折",
-            "subtitle" to "365万+会员权益等你来体验",
-            "btn_stay" to "我再想想",
-            "btn_leave" to "狠心离开",
         )
 
         val svipRetentionData = mapOf(
             "userLevel" to "SVIP",
-            "title" to "SVIP专属优惠限时开启",
             "discount" to "0.5",
             "unit" to "折",
-            "subtitle" to "SVIP特权：专属客服+优先抢票+无限次高清导出",
-            "btn_stay" to "立即续费",
-            "btn_leave" to "暂不续费",
         )
 
         private val benefitsList = listOf("image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8")
@@ -55,8 +47,8 @@ class RetentionViewModel : ViewModel() {
             DslSample("SVIP挽留", MockSamples.vipRetention),
             DslSample("简化弹窗", MockSamples.simpleDialog),
             DslSample("强提醒弹窗", MockSamples.strongDialog),
-            DslSample("错误-非法尺寸", MockSamples.errorInvalidSize, isErrorDemo = true),
-            DslSample("错误-非法颜色", MockSamples.errorInvalidColor, isErrorDemo = true),
+            DslSample("取值非法（组件降级）", MockSamples.errorInvalidValue, isErrorDemo = true),
+            DslSample("字段缺失（组件降级）", MockSamples.errorMissingField, isErrorDemo = true),
             DslSample("空数据", MockSamples.emptyDialog, isErrorDemo = true),
         )
     }
@@ -88,11 +80,16 @@ class RetentionViewModel : ViewModel() {
                             is DialogNode -> root.children.isEmpty()
                             else -> false
                         }
-                        _uiState.value = if (isEmpty) RetentionUiState.Empty else RetentionUiState.Success(root)
+                        println("[ViewModel] parse SUCCESS, isEmpty=$isEmpty, warnings=${result.warnings.size}")
+                        _uiState.value = if (isEmpty) RetentionUiState.Empty else RetentionUiState.Success(root, result.warnings)
                     }
-                    is ParseResult.Failure -> _uiState.value = RetentionUiState.Error(result.errors)
+                    is ParseResult.Failure -> {
+                        println("[ViewModel] parse FAILURE, errors=${result.errors}")
+                        _uiState.value = RetentionUiState.Error(result.errors)
+                    }
                 }
             } catch (e: Exception) {
+                println("[ViewModel] parse EXCEPTION: ${e.message}")
                 _uiState.value = RetentionUiState.Error(listOf("DSL 加载异常: ${e.message}"))
             }
         }
@@ -140,7 +137,7 @@ private object MockSamples {
               {
                 "type": "image",
                 "id": "vip_badge_img",
-                "props": { "src": "{userLevel == 'SVIP' ? 'svip_badge' : 'vip_badge'}", "width": "54dp", "height": "20dp" }
+                "props": { "src": "{userLevel == 'SVIP' ? 'svip' : 'vip'}", "width": "54dp", "height": "20dp" }
               }
             ]
           },
@@ -148,7 +145,7 @@ private object MockSamples {
             "type": "text",
             "id": "title",
             "props": {
-              "text": "{title}",
+              "text": "{userLevel == 'SVIP' ? 'SVIP专属优惠限时开启' : '确定要放弃VIP优惠吗？'}",
               "fontSize": "19sp",
               "color": "#1A1A1A",
               "fontWeight": "bold",
@@ -193,7 +190,7 @@ private object MockSamples {
             "type": "text",
             "id": "subtitle",
             "props": {
-              "text": "{subtitle}",
+              "text": "{userLevel == 'SVIP' ? '电脑/手机/pad多端通用的顶级权益' : '365万+会员权益等你来体验'}",
               "fontSize": "12sp",
               "color": "#999999",
               "margin": { "top": "6dp","bottom": "12dp" }
@@ -226,7 +223,7 @@ private object MockSamples {
             "type": "button",
             "id": "btn_stay",
             "props": {
-              "text": "{btn_stay}",
+              "text": "{userLevel == 'SVIP' ? '立即续费' : '我再想想'}",
               "textColor": "#FFFFFF",
               "backgroundColor": "#FE315D",
               "width": "fillMaxWidth",
@@ -240,7 +237,7 @@ private object MockSamples {
             "type": "button",
             "id": "btn_leave",
             "props": {
-              "text": "{btn_leave}",
+              "text": "{userLevel == 'SVIP' ? '暂不续费' : '狠心离开'}",
               "textColor": "#666666",
               "backgroundColor": "transparent",
               "width": "fillMaxWidth",
@@ -428,16 +425,19 @@ private object MockSamples {
 }
 """.trimIndent()
 
-    val errorInvalidSize = """
+    val errorInvalidValue = """
 {
   "version": "1.0",
-  "pageId": "error_size",
+  "pageId": "error_invalid_value",
   "content": {
     "type": "dialog",
+    "id": "root_dialog",
     "props": {
-      "width": "aaaaa",
+      "width": "75%",
       "maxWidth": "360dp",
-      "backgroundImage": "bg_dialog",
+      "backgroundColor": "#FFFFFF",
+      "cornerRadius": "16dp",
+      "cancelable": true,
       "overlay": {
         "backgroundColor": "#000000",
         "opacity": 0.6
@@ -447,9 +447,95 @@ private object MockSamples {
       {
         "type": "column",
         "id": "main_content",
-        "props": { "alignItems": "center" },
+        "props": {
+          "alignItems": "center",
+          "padding": { "top": "24dp", "bottom": "24dp", "left": "20dp", "right": "20dp" }
+        },
         "children": [
-          { "type": "text", "id": "err_title", "props": { "text": "这个弹窗不会渲染出来", "fontSize": "18sp" } }
+          {
+            "type": "text",
+            "id": "title",
+            "props": {
+              "text": "取值非法演示",
+              "fontSize": "18sp",
+              "color": "#1A1A1A",
+              "fontWeight": "bold",
+              "margin": { "bottom": "8dp" }
+            }
+          },
+          {
+            "type": "text",
+            "id": "desc",
+            "props": {
+              "text": "以下组件属性值非法，已降级为默认值",
+              "fontSize": "13sp",
+              "color": "#999999",
+              "margin": { "bottom": "20dp" }
+            }
+          },
+          {
+            "type": "row",
+            "id": "invalid_props_row",
+            "props": {
+              "justifyContent": "center",
+              "gap": "12dp",
+              "margin": { "bottom": "16dp" }
+            },
+            "children": [
+              {
+                "type": "text",
+                "id": "bad_font",
+                "props": {
+                  "text": "字号非法: big",
+                  "fontSize": "big",
+                  "color": "#D32F2F"
+                }
+              },
+              {
+                "type": "text",
+                "id": "bad_color",
+                "props": {
+                  "text": "颜色非法: #GG0000",
+                  "fontSize": "14sp",
+                  "color": "#GG0000"
+                }
+              }
+            ]
+          },
+          {
+            "type": "image",
+            "id": "bad_width_img",
+            "props": {
+              "src": "vip",
+              "width": "wide",
+              "height": "48dp",
+              "margin": { "bottom": "16dp" }
+            }
+          },
+          {
+            "type": "text",
+            "id": "hint",
+            "props": {
+              "text": "每个组件右上角有 ⚠，点击查看详情",
+              "fontSize": "12sp",
+              "color": "#FFA726",
+              "margin": { "bottom": "20dp" }
+            }
+          },
+          {
+            "type": "button",
+            "id": "btn_ok",
+            "props": {
+              "text": "知道了",
+              "textColor": "#FFFFFF",
+              "backgroundColor": "#FE315D",
+              "width": "fillMaxWidth",
+              "height": "44dp",
+              "cornerRadius": "8dp",
+              "fontSize": "15sp"
+            },
+            "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
+          }
         ]
       }
     ]
@@ -457,17 +543,19 @@ private object MockSamples {
 }
 """.trimIndent()
 
-    val errorInvalidColor = """
+    val errorMissingField = """
 {
   "version": "1.0",
-  "pageId": "error_color",
+  "pageId": "error_missing_field",
   "content": {
     "type": "dialog",
     "id": "root_dialog",
     "props": {
       "width": "75%",
       "maxWidth": "360dp",
-      "backgroundColor": "#GG0000",
+      "backgroundColor": "#FFFFFF",
+      "cornerRadius": "16dp",
+      "cancelable": true,
       "overlay": {
         "backgroundColor": "#000000",
         "opacity": 0.6
@@ -477,9 +565,89 @@ private object MockSamples {
       {
         "type": "column",
         "id": "main_content",
-        "props": { "alignItems": "center" },
+        "props": {
+          "alignItems": "center",
+          "padding": { "top": "24dp", "bottom": "24dp", "left": "20dp", "right": "20dp" }
+        },
         "children": [
-          { "type": "text", "id": "err_title", "props": { "text": "这个弹窗不会渲染出来", "fontSize": "18sp" } }
+          {
+            "type": "text",
+            "id": "title",
+            "props": {
+              "text": "字段缺失演示",
+              "fontSize": "18sp",
+              "color": "#1A1A1A",
+              "fontWeight": "bold",
+              "margin": { "bottom": "8dp" }
+            }
+          },
+          {
+            "type": "text",
+            "id": "desc",
+            "props": {
+              "text": "以下组件缺少必要字段，已降级为占位符",
+              "fontSize": "13sp",
+              "color": "#999999",
+              "margin": { "bottom": "20dp" }
+            }
+          },
+          {
+            "type": "text",
+            "id": "empty_text",
+            "props": {
+              "text": "",
+              "fontSize": "14sp",
+              "margin": { "bottom": "12dp" }
+            }
+          },
+          {
+            "type": "image",
+            "id": "empty_src_img",
+            "props": {
+              "src": "",
+              "width": "48dp",
+              "height": "48dp",
+              "margin": { "bottom": "12dp" }
+            }
+          },
+          {
+            "type": "button",
+            "id": "empty_btn",
+            "props": {
+              "text": "",
+              "backgroundColor": "#E0E0E0",
+              "width": "fillMaxWidth",
+              "height": "44dp",
+              "cornerRadius": "8dp",
+              "fontSize": "14sp",
+              "margin": { "bottom": "20dp" }
+            },
+            "events": { "click": { "type": "track", "eventId": "click_empty_btn" } }
+          },
+          {
+            "type": "text",
+            "id": "hint",
+            "props": {
+              "text": "每个缺失组件右上角有 ⚠，点击查看详情",
+              "fontSize": "12sp",
+              "color": "#FFA726",
+              "margin": { "bottom": "20dp" }
+            }
+          },
+          {
+            "type": "button",
+            "id": "btn_ok",
+            "props": {
+              "text": "知道了",
+              "textColor": "#FFFFFF",
+              "backgroundColor": "#FE315D",
+              "width": "fillMaxWidth",
+              "height": "44dp",
+              "cornerRadius": "8dp",
+              "fontSize": "15sp"
+            },
+            "events": { "click": { "type": "navigate", "route": "", "closeDialog": true } }
+          }
         ]
       }
     ]

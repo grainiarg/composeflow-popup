@@ -3,11 +3,14 @@ package com.example.mydemo.retention
 import kotlinx.serialization.SerializationException
 
 sealed class ParseResult {
-    data class Success(val root: DslNode) : ParseResult()
+    data class Success(
+        val root: DslNode,
+        val warnings: List<ParseError> = emptyList(),
+    ) : ParseResult()
     data class Failure(val errors: List<String>) : ParseResult()
 }
 
-internal data class ParseError(val path: String, val message: String)
+data class ParseError(val path: String, val message: String)
 
 object DslParser {
 
@@ -15,19 +18,19 @@ object DslParser {
         val page: DslPage = try {
             dslJson.decodeFromString<DslPage>(json)
         } catch (e: SerializationException) {
+            println("[DslParser] FAIL deserialization: ${e.message}")
             return ParseResult.Failure(listOf("DSL 解析失败: ${e.message}"))
         } catch (e: IllegalArgumentException) {
+            println("[DslParser] FAIL illegal arg: ${e.message}")
             return ParseResult.Failure(listOf("DSL 格式错误: ${e.message}"))
         }
 
         val root = page.content
 
-        val errors = validate(root, "root")
-        if (errors.isNotEmpty()) {
-            return ParseResult.Failure(errors.map { "[${it.path}] ${it.message}" })
-        }
-
-        return ParseResult.Success(root)
+        val warnings = validate(root, "root")
+        println("[DslParser] SUCCESS, warnings count: ${warnings.size}")
+        warnings.forEach { println("[DslParser]   warning: [${it.path}] ${it.message}") }
+        return ParseResult.Success(root, warnings)
     }
 
     private fun validate(node: DslNode, path: String): List<ParseError> {

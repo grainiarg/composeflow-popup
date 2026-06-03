@@ -19,6 +19,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,6 +61,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mydemo.shared.generated.resources.Res
 import mydemo.shared.generated.resources.bg_dialog
+import mydemo.shared.generated.resources.svip
 import mydemo.shared.generated.resources.vip
 import mydemo.shared.generated.resources.image4
 import mydemo.shared.generated.resources.image5
@@ -97,21 +99,24 @@ fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
                         }
                     }
                 }
-                is RetentionUiState.Success -> DslRenderer(
-                    node = s.rootNode,
-                    dataContext = viewModel.dataContext,
-                    onEvent = { event ->
-                        when (event) {
-                            is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
-                            is UiEvent.Navigate -> {
-                                if (event.closeDialog) onDismiss()
-                                PlatformUtil.navigate(event.route)
+                is RetentionUiState.Success -> {
+                    DslRenderer(
+                        node = s.rootNode,
+                        dataContext = viewModel.dataContext,
+                        onEvent = { event ->
+                            when (event) {
+                                is UiEvent.Toast -> scope.launch { snackbarHostState.showSnackbar(event.msg) }
+                                is UiEvent.Navigate -> {
+                                    if (event.closeDialog) onDismiss()
+                                    PlatformUtil.navigate(event.route)
+                                }
+                                is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
+                                is UiEvent.Dismiss -> onDismiss()
                             }
-                            is UiEvent.Track -> PlatformUtil.track(event.eventId, event.extra)
-                            is UiEvent.Dismiss -> onDismiss()
-                        }
-                    },
-                )
+                        },
+                        allWarnings = s.warnings,
+                    )
+                }
             }
             SnackbarHost(
                 hostState = snackbarHostState,
@@ -146,7 +151,7 @@ fun RetentionScreen(viewModel: RetentionViewModel, onDismiss: () -> Unit = {}) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "错误演示",
+                    text = "警告演示",
                     fontSize = 11.sp,
                     color = Color(0xFF999999.toInt()),
                 )
@@ -264,6 +269,58 @@ private fun ErrorContent(errors: List<String>, onDismiss: () -> Unit, modifier: 
     }
 }
 
+@Composable
+private fun WarningBadge(
+    warnings: List<ParseError>,
+    content: @Composable () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        content()
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 4.dp, y = (-4).dp)
+                .size(18.dp)
+                .background(Color(0xFFFFA726.toInt()), RoundedCornerShape(4.dp))
+                .clickable { expanded = !expanded },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("⚠", fontSize = 11.sp, color = Color.White)
+        }
+
+        if (expanded) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = 16.dp)
+                    .widthIn(max = 250.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0.toInt())),
+                shape = RoundedCornerShape(6.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            ) {
+                Column(Modifier.padding(8.dp)) {
+                    warnings.forEachIndexed { i, error ->
+                        if (i > 0) Spacer(Modifier.size(4.dp))
+                        Text(
+                            text = error.message,
+                            fontSize = 11.sp,
+                            color = Color(0xFFE65100.toInt()),
+                        )
+                        Text(
+                            text = error.path,
+                            fontSize = 9.sp,
+                            color = Color(0xFFBFBFBF.toInt()),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ============================================================
 // 渲染引擎
 // ============================================================
@@ -273,18 +330,39 @@ fun DslRenderer(
     node: DslNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit = {},
+    allWarnings: List<ParseError> = emptyList(),
+    currentPath: String = "root",
 ) {
-    when (node) {
-        is DialogNode -> RenderDialog(node, dataContext, onEvent)
-        is TextNode -> RenderText(node, dataContext)
-        is AnimatedTextNode -> RenderAnimatedText(node, dataContext)
-        is ImageNode -> RenderImage(node, dataContext)
-        is ButtonNode -> RenderButton(node, dataContext, onEvent)
-        is ColumnNode -> RenderColumn(node, dataContext, onEvent)
-        is RowNode -> RenderRow(node, dataContext, onEvent)
-        is BoxNode -> RenderBox(node, dataContext, onEvent)
-        is CarouselNode -> RenderCarousel(node, dataContext, onEvent)
+    val nodeWarnings = directWarnings(currentPath, allWarnings)
+
+    val content: @Composable () -> Unit = {
+        when (node) {
+            is DialogNode -> RenderDialog(node, dataContext, onEvent, allWarnings, currentPath)
+            is TextNode -> RenderText(node, dataContext)
+            is AnimatedTextNode -> RenderAnimatedText(node, dataContext)
+            is ImageNode -> RenderImage(node, dataContext)
+            is ButtonNode -> RenderButton(node, dataContext, onEvent)
+            is ColumnNode -> RenderColumn(node, dataContext, onEvent, allWarnings, currentPath)
+            is RowNode -> RenderRow(node, dataContext, onEvent, allWarnings, currentPath)
+            is BoxNode -> RenderBox(node, dataContext, onEvent, allWarnings, currentPath)
+            is CarouselNode -> RenderCarousel(node, dataContext, onEvent, allWarnings, currentPath)
+        }
     }
+
+    if (nodeWarnings.isNotEmpty()) {
+        WarningBadge(warnings = nodeWarnings, content = content)
+    } else {
+        content()
+    }
+}
+
+private fun directWarnings(
+    nodePath: String,
+    allWarnings: List<ParseError>,
+): List<ParseError> = allWarnings.filter { w ->
+    w.path == nodePath ||
+        w.path.startsWith("$nodePath.props.") ||
+        w.path.startsWith("$nodePath.containerProps.")
 }
 
 // ============================================================
@@ -296,6 +374,8 @@ private fun RenderDialog(
     node: DialogNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit,
+    allWarnings: List<ParseError>,
+    currentPath: String,
 ) {
     val overlay = node.props.overlay
     val overlayColor = overlay?.let {
@@ -335,8 +415,8 @@ private fun RenderDialog(
                     )
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    node.children.forEach { child ->
-                        DslRenderer(child, dataContext, onEvent)
+                    node.children.forEachIndexed { i, child ->
+                        DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$i]")
                     }
                 }
             }
@@ -469,7 +549,8 @@ private fun RenderImage(node: ImageNode, dataContext: DataContext) {
 private fun imageResourceFor(src: String): DrawableResource? = when (src) {
     "vip" -> Res.drawable.vip
     "vip_badge" -> Res.drawable.vip
-    "svip_badge" -> Res.drawable.vip
+    "svip" -> Res.drawable.svip
+    "svip_badge" -> Res.drawable.svip
     "bg_dialog" -> Res.drawable.bg_dialog
     "image1" -> Res.drawable.image1
     "image2" -> Res.drawable.image2
@@ -533,6 +614,8 @@ private fun RenderColumn(
     node: ColumnNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit,
+    allWarnings: List<ParseError>,
+    currentPath: String,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val gap = node.containerProps.gap?.parseDp()?.dp
@@ -547,7 +630,7 @@ private fun RenderColumn(
         verticalArrangement = parseJustifyContent(node.containerProps.justifyContent),
     ) {
         node.children.forEachIndexed { index, child ->
-            DslRenderer(child, dataContext, onEvent)
+            DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$index]")
             if (gap != null && index < node.children.lastIndex) {
                 Spacer(Modifier.size(gap))
             }
@@ -560,6 +643,8 @@ private fun RenderRow(
     node: RowNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit,
+    allWarnings: List<ParseError>,
+    currentPath: String,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
     val gap = node.containerProps.gap?.parseDp()?.dp
@@ -576,9 +661,9 @@ private fun RenderRow(
     ) {
         node.children.forEachIndexed { index, child ->
             if (isBaseline) {
-                Box(Modifier.alignByBaseline()) { DslRenderer(child, dataContext, onEvent) }
+                Box(Modifier.alignByBaseline()) { DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$index]") }
             } else {
-                DslRenderer(child, dataContext, onEvent)
+                DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$index]")
             }
             if (gap != null && index < node.children.lastIndex) {
                 Spacer(Modifier.size(gap))
@@ -592,6 +677,8 @@ private fun RenderBox(
     node: BoxNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit,
+    allWarnings: List<ParseError>,
+    currentPath: String,
 ) {
     val bgColor = node.containerProps.backgroundColor?.let { parseHexColor(it)?.let { c -> Color(c) } }
 
@@ -602,7 +689,9 @@ private fun RenderBox(
             .then(node.containerProps.margin.toSpacingModifier()),
         contentAlignment = parseBoxAlign(node.containerProps.alignItems),
     ) {
-        node.children.forEach { child -> DslRenderer(child, dataContext, onEvent) }
+        node.children.forEachIndexed { i, child ->
+            DslRenderer(child, dataContext, onEvent, allWarnings, "$currentPath.children[$i]")
+        }
     }
 }
 
@@ -615,6 +704,8 @@ private fun RenderCarousel(
     node: CarouselNode,
     dataContext: DataContext,
     onEvent: (UiEvent) -> Unit,
+    allWarnings: List<ParseError>,
+    currentPath: String,
 ) {
     val items = dataContext.resolveList(node.dataKey ?: return)
     val template = node.itemTemplate ?: return
@@ -663,7 +754,7 @@ private fun RenderCarousel(
         ) {
             pageItems.forEach { item ->
                 val itemContext = dataContext.withItem(item)
-                DslRenderer(template, itemContext, onEvent)
+                DslRenderer(template, itemContext, onEvent, allWarnings, "$currentPath.itemTemplate")
             }
         }
     }
